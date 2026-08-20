@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dongle Librarian</title>
+<style>
+  :root{
+    --bg:#0f172a;
+    --panel:#ffffff;
+    --panel-2:#f8fafc;
+    --border:#e2e8f0;
+    --text:#1e293b;
+    --muted:#64748b;
+    --accent:#2563eb;
+    --accent-dark:#1d4ed8;
+    --good:#16a34a;
+    --good-bg:#f0fdf4;
+    --bad:#dc2626;
+    --bad-bg:#fef2f2;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#0f172a 0%,#1e293b 220px,#f1f5f9 220px,#f1f5f9 100%);
+    color:var(--text);
+    min-height:100vh;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:0 20px 60px;}
+  header.top{padding:32px 0 24px;color:#fff;}
+  header.top h1{margin:0 0 4px;font-size:1.5rem;}
+  header.top p{margin:0;color:#cbd5e1;font-size:.92rem;}
+  .userbar{display:flex;align-items:center;justify-content:space-between;margin-top:18px;flex-wrap:wrap;gap:10px;}
+  .userbar .who{font-size:.85rem;color:#cbd5e1;}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    border:none;border-radius:8px;padding:9px 16px;font-size:.88rem;font-weight:600;
+    cursor:pointer;transition:background .15s ease;
+  }
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-primary:disabled{background:#94a3b8;cursor:not-allowed;}
+  .btn-ghost{background:transparent;color:#cbd5e1;border:1px solid #475569;}
+  .btn-ghost:hover{background:#334155;}
+  .btn-danger{background:var(--bad);color:#fff;}
+  .btn-danger:hover{background:#b91c1c;}
+  .btn-small{padding:6px 12px;font-size:.8rem;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+  .card h2{margin:0 0 14px;font-size:1.05rem;}
+  label{display:block;font-size:.82rem;font-weight:600;color:var(--muted);margin-bottom:6px;}
+  input[type=text],input[type=password],input[type=email],input[type=number]{
+    width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:.92rem;
+    background:#fff;color:var(--text);
+  }
+  input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+
+  .name-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+  .name-row .field{flex:1;min-width:220px;}
+
+  .license{border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;background:var(--panel-2);}
+  .license-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .license-head h3{margin:0;font-size:1rem;}
+  .badge{font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;}
+  .badge.free{background:var(--good-bg);color:var(--good);}
+  .badge.full{background:var(--bad-bg);color:var(--bad);}
+  .holders{margin-top:10px;font-size:.85rem;color:var(--muted);}
+  .holders ul{margin:6px 0 0;padding-left:18px;}
+  .empty-note{color:var(--muted);font-size:.9rem;}
+
+  .mykey{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .mykey .val{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9rem;background:#f1f5f9;padding:3px 8px;border-radius:6px;word-break:break-all;}
+  .mykey .meta{font-size:.78rem;color:var(--muted);margin-top:3px;}
+
+  .msg{font-size:.85rem;padding:10px 12px;border-radius:8px;margin-bottom:14px;}
+  .msg.error{background:var(--bad-bg);color:var(--bad);}
+  .msg.ok{background:var(--good-bg);color:var(--good);}
+
+  .tabs{display:flex;gap:6px;margin-bottom:18px;}
+  .tab{padding:8px 14px;border-radius:8px;font-size:.85rem;font-weight:600;color:var(--muted);cursor:pointer;background:transparent;border:1px solid transparent;}
+  .tab.active{background:#fff;color:var(--text);border-color:var(--border);}
+
+  .hidden{display:none !important;}
+  .login-box{max-width:380px;margin:60px auto;}
+  .login-box h2{margin-top:0;}
+  .field-gap{margin-bottom:14px;}
+  .admin-hint{font-size:.8rem;color:var(--muted);margin-top:14px;}
+
+  .keyrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.85rem;flex-wrap:wrap;}
+  .keyrow:last-child{border-bottom:none;}
+  .keyrow .kval{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all;}
+  .keyrow .kstatus{color:var(--muted);font-size:.78rem;}
+  .subtle{color:var(--muted);font-size:.8rem;}
+  .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+  .row .field{flex:1;min-width:160px;}
+  footer.note{margin-top:30px;font-size:.78rem;color:var(--muted);text-align:center;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <h1>🔑 Dongle Librarian</h1>
+    <p>Check out and return LiDAR processing software keys.</p>
+    <div class="userbar hidden" id="userbar">
+      <span class="who" id="who-label"></span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-small" id="admin-nav-btn">Admin</button>
+        <button class="btn btn-ghost btn-small" id="signout-btn">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- LOGIN -->
+  <div id="login-screen">
+    <div class="card login-box">
+      <h2 id="login-title">Sign in</h2>
+      <div id="login-msg"></div>
+      <form id="login-form">
+        <div class="field-gap">
+          <label for="login-email">Email</label>
+          <input type="email" id="login-email" required autocomplete="username">
+        </div>
+        <div class="field-gap">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Sign in</button>
+      </form>
+      <p class="admin-hint" id="login-hint">Use the shared team login your admin gave you. Managing keys instead? Sign in with the separate admin account.</p>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app-screen" class="hidden">
+
+    <div class="tabs">
+      <div class="tab active" id="tab-main">Check out / return</div>
+      <div class="tab" id="tab-admin">Admin</div>
+    </div>
+
+    <!-- MAIN VIEW -->
+    <div id="main-view">
+      <div class="card">
+        <h2>Your name</h2>
+        <div class="name-row">
+          <div class="field">
+            <input type="text" id="your-name" placeholder="e.g. Greg">
+          </div>
+        </div>
+        <p class="subtle" style="margin-top:8px;margin-bottom:0;">Remembered on this browser. Names are matched without case, so "Greg" and "greg" are the same person.</p>
+      </div>
+
+      <div id="checkout-msg"></div>
+
+      <div class="card">
+        <h2>Software</h2>
+        <div id="licenses-list"><p class="empty-note">Loading…</p></div>
+      </div>
+
+      <div class="card">
+        <h2>Your keys</h2>
+        <div id="your-keys-list"><p class="empty-note">Enter your name above to see anything checked out under it.</p></div>
+      </div>
+    </div>
+
+    <!-- ADMIN VIEW -->
+    <div id="admin-view" class="hidden">
+      <div id="admin-guard" class="card hidden">
+        <p>You're signed in as a team account, not the admin account. Sign out and sign in with the admin email/password to manage keys.</p>
+      </div>
+
+      <div id="admin-content" class="hidden">
+        <div class="card">
+          <h2>Add software title</h2>
+          <div class="row">
+            <div class="field">
+              <label for="new-license-name">Name</label>
+              <input type="text" id="new-license-name" placeholder="e.g. LiDAR360">
+            </div>
+            <button class="btn btn-primary" id="add-license-btn">Add</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Add a key</h2>
+          <div class="row">
+            <div class="field">
+              <label for="new-key-license">Software</label>
+              <select id="new-key-license"></select>
+            </div>
+            <div class="field">
+              <label for="new-key-value">License key</label>
+              <input type="text" id="new-key-value" placeholder="Paste the key string">
+            </div>
+            <button class="btn btn-primary" id="add-key-btn">Add key</button>
+          </div>
+        </div>
+
+        <div id="admin-licenses-list"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="note">Internal tool — key data lives in Firestore, not in this page.</footer>
+</div>
+
+<!-- Firebase (compat SDK, no build step needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+/* =========================================================================
+   STEP 1 — CONFIG. Edit these two things before this page will work.
+   =========================================================================
+   1. firebaseConfig: from Firebase Console > Project settings > General >
+      "Your apps" > Web app > SDK setup and configuration > Config.
+   2. ADMIN_EMAIL: the email of the ONE Firebase Authentication account that
+      should see the Admin tab. Everyone else (the shared team account)
+      only ever sees the checkout/return view.
+   ========================================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBH6apXR7RHSsgquGk7ZHc5huHmAW_ue2Lw",
+  authDomain: "dongle-librarian.firebaseapp.com",
+  projectId: "dongle-librarian",
+  storageBucket: "dongle-librarian.firebasestorage.app",
+  messagingSenderId: "14108719153",
+  appId: "1:14108719153:web:4e662282ab27280c2c7d10"
+};
+const ADMIN_EMAIL = "wiwoodyth@gmail.com"; // must match exactly the email you used for your admin account in Firebase Authentication
+/* ========================================================================= */
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let currentUser = null;
+let allLicenses = [];  // [{id, name}]
+let allKeys = [];      // [{id, licenseId, value, status, holder, holderLower, checkedOutAt}]
+let unsubLicenses = null;
+let unsubKeys = null;
+let pendingAdminView = false;
+
+const $ = (id) => document.getElementById(id);
+const nameInput = () => $('your-name');
+const NAME_STORAGE_KEY = 'ldl_name';
+
+function showMsg(el, text, type){
+  el.innerHTML = text ? `<div class="msg ${type}">${text}</div>` : '';
+}
+
+/* ---------- Auth ---------- */
+
+auth.onAuthStateChanged((user) => {
+  currentUser = user;
+  if (user){
+    $('login-screen').classList.add('hidden');
+    $('app-screen').classList.remove('hidden');
+    $('userbar').classList.remove('hidden');
+    $('who-label').textContent = 'Signed in as ' + user.email;
+    subscribeData();
+    if (pendingAdminView){
+      pendingAdminView = false;
+      switchTab('admin');
+    }
+    renderAdminGuard();
+  } else {
+    $('login-screen').classList.remove('hidden');
+    $('app-screen').classList.add('hidden');
+    $('userbar').classList.add('hidden');
+    if (unsubLicenses) unsubLicenses();
+    if (unsubKeys) unsubKeys();
+  }
+});
+
+$('login-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const email = $('login-email').value.trim();
+  const pass = $('login-password').value;
+  showMsg($('login-msg'), '', '');
+  auth.signInWithEmailAndPassword(email, pass)
+    .catch(err => showMsg($('login-msg'), 'Sign-in failed: ' + err.message, 'error'));
+});
+
+$('signout-btn').addEventListener('click', () => auth.signOut());
+
+$('admin-nav-btn').addEventListener('click', () => {
+  switchTab('admin');
+});
+
+/* ---------- Tabs ---------- */
+
+function switchTab(which){
+  const mainTab = $('tab-main'), adminTab = $('tab-admin');
+  const mainView = $('main-view'), adminView = $('admin-view');
+  if (which === 'admin'){
+    mainTab.classList.remove('active');
+    adminTab.classList.add('active');
+    mainView.classList.add('hidden');
+    adminView.classList.remove('hidden');
+    renderAdminGuard();
+  } else {
+    adminTab.classList.remove('active');
+    mainTab.classList.add('active');
+    adminView.classList.add('hidden');
+    mainView.classList.remove('hidden');
+  }
+}
+$('tab-main').addEventListener('click', () => switchTab('main'));
+$('tab-admin').addEventListener('click', () => switchTab('admin'));
+
+function renderAdminGuard(){
+  const isAdmin = currentUser && currentUser.email === ADMIN_EMAIL;
+  $('admin-guard').classList.toggle('hidden', isAdmin);
+  $('admin-content').classList.toggle('hidden', !isAdmin);
+}
+
+/* ---------- Name handling ---------- */
+
+nameInput().value = localStorage.getItem(NAME_STORAGE_KEY) || '';
+nameInput().addEventListener('input', () => {
+  localStorage.setItem(NAME_STORAGE_KEY, nameInput().value);
+  renderAll();
+});
+
+function currentNameLower(){
+  return (nameInput().value || '').trim().toLowerCase();
+}
+
+/* ---------- Firestore subscriptions ---------- */
+
+function subscribeData(){
+  if (unsubLicenses) unsubLicenses();
+  if (unsubKeys) unsubKeys();
+
+  unsubLicenses = db.collection('licenses').orderBy('name').onSnapshot((snap) => {
+    allLicenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAll();
+  }, (err) => {
+    showMsg($('checkout-msg'), 'Could not load software list: ' + err.message, 'error');
+  });
+
+  unsubKeys = db.collection('keys').onSnapshot((snap) => {
+    allKeys = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAll();
+  }, (err) => {
+    showMsg($('checkout-msg'), 'Could not load keys: ' + err.message, 'error');
+  });
+}
+
+function renderAll(){
+  renderLicensesList();
+  renderYourKeys();
+  renderAdmin();
+}
+
+/* ---------- Main checkout view ---------- */
+
+function renderLicensesList(){
+  const container = $('licenses-list');
+  if (allLicenses.length === 0){
+    container.innerHTML = '<p class="empty-note">No software has been added yet. Ask your admin to add some in the Admin tab.</p>';
+    return;
+  }
+  container.innerHTML = '';
+  allLicenses.forEach(lic => {
+    const keysForLic = allKeys.filter(k => k.licenseId === lic.id);
+    const total = keysForLic.length;
+    const free = keysForLic.filter(k => k.status === 'available');
+    const taken = keysForLic.filter(k => k.status === 'checked_out');
+
+    const div = document.createElement('div');
+    div.className = 'license';
+
+    let holdersHtml = '';
+    if (taken.length > 0){
+      holdersHtml = `<div class="holders">Currently held by:<ul>${
+        taken.map(k => `<li>${escapeHtml(k.holder || 'someone')}${daysAgoLabel(k.checkedOutAt)}</li>`).join('')
+      }</ul></div>`;
+    }
+
+    const canCheckout = free.length > 0;
+    div.innerHTML = `
+      <div class="license-head">
+        <h3>${escapeHtml(lic.name)}</h3>
+        <span class="badge ${canCheckout ? 'free' : 'full'}">${free.length} of ${total} available</span>
+      </div>
+      ${holdersHtml}
+      <div style="margin-top:12px;">
+        <button class="btn btn-primary btn-small" ${canCheckout ? '' : 'disabled'} data-lic="${lic.id}">
+          ${canCheckout ? 'Check out a key' : 'None available'}
+        </button>
+      </div>
+    `;
+    const btn = div.querySelector('button[data-lic]');
+    btn.addEventListener('click', () => checkoutKey(lic.id));
+    container.appendChild(div);
+  });
+}
+
+function daysAgoLabel(ts){
+  if (!ts || !ts.toDate) return '';
+  const days = Math.floor((Date.now() - ts.toDate().getTime()) / 86400000);
+  if (days <= 0) return ' — checked out today';
+  if (days === 1) return ' — checked out 1 day ago';
+  return ` — checked out ${days} days ago`;
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function checkoutKey(licenseId){
+  showMsg($('checkout-msg'), '', '');
+  const name = nameInput().value.trim();
+  if (!name){
+    showMsg($('checkout-msg'), 'Enter your name first.', 'error');
+    return;
+  }
+  const candidates = allKeys.filter(k => k.licenseId === licenseId && k.status === 'available');
+  if (candidates.length === 0){
+    showMsg($('checkout-msg'), 'No keys available right now — someone may have just taken the last one.', 'error');
+    return;
+  }
+  const target = candidates[0];
+  const ref = db.collection('keys').doc(target.id);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists || snap.data().status !== 'available'){
+        throw new Error('Someone just checked out that key — try again.');
+      }
+      tx.update(ref, {
+        status: 'checked_out',
+        holder: name,
+        holderLower: name.toLowerCase(),
+        checkedOutAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    localStorage.setItem(NAME_STORAGE_KEY, name);
+    showMsg($('checkout-msg'), 'Checked out. See "Your keys" below for the key itself.', 'ok');
+  } catch (err) {
+    showMsg($('checkout-msg'), err.message, 'error');
+  }
+}
+
+async function returnKey(keyId){
+  try {
+    await db.collection('keys').doc(keyId).update({
+      status: 'available', holder: '', holderLower: '', checkedOutAt: null
+    });
+  } catch (err) {
+    showMsg($('checkout-msg'), 'Could not return key: ' + err.message, 'error');
+  }
+}
+
+function renderYourKeys(){
+  const container = $('your-keys-list');
+  const nameLower = currentNameLower();
+  if (!nameLower){
+    container.innerHTML = '<p class="empty-note">Enter your name above to see anything checked out under it.</p>';
+    return;
+  }
+  const mine = allKeys.filter(k => k.status === 'checked_out' && k.holderLower === nameLower);
+  if (mine.length === 0){
+    container.innerHTML = '<p class="empty-note">Nothing checked out under that name right now.</p>';
+    return;
+  }
+  container.innerHTML = '';
+  mine.forEach(k => {
+    const lic = allLicenses.find(l => l.id === k.licenseId);
+    const div = document.createElement('div');
+    div.className = 'mykey';
+    div.innerHTML = `
+      <div>
+        <div>${escapeHtml(lic ? lic.name : 'Unknown software')}</div>
+        <div class="val">${escapeHtml(k.value)}</div>
+        <div class="meta">${daysAgoLabel(k.checkedOutAt).replace(' — ', '')}</div>
+      </div>
+      <button class="btn btn-danger btn-small" data-key="${k.id}">Return this key</button>
+    `;
+    div.querySelector('button[data-key]').addEventListener('click', () => returnKey(k.id));
+    container.appendChild(div);
+  });
+}
+
+/* ---------- Admin view ---------- */
+
+$('add-license-btn').addEventListener('click', async () => {
+  const name = $('new-license-name').value.trim();
+  if (!name) return;
+  await db.collection('licenses').add({ name });
+  $('new-license-name').value = '';
+});
+
+$('add-key-btn').addEventListener('click', async () => {
+  const licenseId = $('new-key-license').value;
+  const value = $('new-key-value').value.trim();
+  if (!licenseId || !value) return;
+  await db.collection('keys').add({
+    licenseId, value, status: 'available', holder: '', holderLower: '', checkedOutAt: null
+  });
+  $('new-key-value').value = '';
+});
+
+function renderAdmin(){
+  // populate the "add key" software dropdown
+  const sel = $('new-key-license');
+  const prevVal = sel.value;
+  sel.innerHTML = allLicenses.map(l => `<option value="${l.id}">${escapeHtml(l.name)}</option>`).join('');
+  if (prevVal) sel.value = prevVal;
+
+  const container = $('admin-licenses-list');
+  container.innerHTML = '';
+  allLicenses.forEach(lic => {
+    const keysForLic = allKeys.filter(k => k.licenseId === lic.id);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <h2 style="display:flex;justify-content:space-between;align-items:center;">
+        ${escapeHtml(lic.name)}
+        <button class="btn btn-ghost btn-small" data-del-lic="${lic.id}">Delete software</button>
+      </h2>
+      <div id="admin-keys-${lic.id}"></div>
+    `;
+    card.querySelector('button[data-del-lic]').addEventListener('click', () => deleteLicense(lic.id, lic.name, keysForLic.length));
+    container.appendChild(card);
+
+    const keysHost = card.querySelector(`#admin-keys-${lic.id}`);
+    if (keysForLic.length === 0){
+      keysHost.innerHTML = '<p class="empty-note">No keys added yet.</p>';
+    } else {
+      keysForLic.forEach(k => {
+        const row = document.createElement('div');
+        row.className = 'keyrow';
+        row.innerHTML = `
+          <div>
+            <div class="kval">${escapeHtml(k.value)}</div>
+            <div class="kstatus">${k.status === 'checked_out' ? 'Checked out by ' + escapeHtml(k.holder || '?') : 'Available'}</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            ${k.status === 'checked_out' ? `<button class="btn btn-ghost btn-small" data-force="${k.id}">Force return</button>` : ''}
+            <button class="btn btn-danger btn-small" data-delkey="${k.id}">Delete</button>
+          </div>
+        `;
+        row.querySelector('button[data-delkey]').addEventListener('click', () => deleteKey(k.id, k.status));
+        const forceBtn = row.querySelector('button[data-force]');
+        if (forceBtn) forceBtn.addEventListener('click', () => returnKey(k.id));
+        keysHost.appendChild(row);
+      });
+    }
+  });
+}
+
+async function deleteLicense(id, name, keyCount){
+  const ok = confirm(`Delete "${name}"? This will also delete its ${keyCount} key(s). This can't be undone.`);
+  if (!ok) return;
+  const batch = db.batch();
+  allKeys.filter(k => k.licenseId === id).forEach(k => batch.delete(db.collection('keys').doc(k.id)));
+  batch.delete(db.collection('licenses').doc(id));
+  await batch.commit();
+}
+
+async function deleteKey(id, status){
+  const msg = status === 'checked_out'
+    ? 'This key is currently checked out. Delete it anyway?'
+    : 'Delete this key?';
+  if (!confirm(msg)) return;
+  await db.collection('keys').doc(id).delete();
+}
+
+</script>
+</body>
+</html>
