@@ -89,6 +89,7 @@
   .admin-hint{font-size:.8rem;color:var(--muted);margin-top:14px;}
 
   .keyrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.85rem;flex-wrap:wrap;}
+  .assign-input{width:130px;padding:6px 8px;font-size:.8rem;border:1px solid var(--border);border-radius:6px;}
   .keyrow:last-child{border-bottom:none;}
   .keyrow .kval{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all;}
   .keyrow .kstatus{color:var(--muted);font-size:.78rem;}
@@ -459,6 +460,22 @@ async function returnKey(keyId){
   }
 }
 
+// Admin-only: directly set (or reassign) who holds a key, overriding whatever it said before.
+// Useful for correcting a mistaken checkout, or recording a key that was already in someone's
+// hands before this tool existed.
+async function adminAssignKey(keyId, name){
+  try {
+    await db.collection('keys').doc(keyId).update({
+      status: 'checked_out',
+      holder: name,
+      holderLower: name.toLowerCase(),
+      checkedOutAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (err) {
+    alert('Could not assign key: ' + err.message);
+  }
+}
+
 function renderYourKeys(){
   const container = $('your-keys-list');
   const nameLower = currentNameLower();
@@ -543,7 +560,9 @@ function renderAdmin(){
             <div class="kval">${escapeHtml(k.value)}</div>
             <div class="kstatus">${k.status === 'checked_out' ? 'Checked out by ' + escapeHtml(k.holder || '?') : 'Available'}</div>
           </div>
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input type="text" class="assign-input" placeholder="Assign to…">
+            <button class="btn btn-primary btn-small" data-assign="${k.id}">Assign</button>
             ${k.status === 'checked_out' ? `<button class="btn btn-ghost btn-small" data-force="${k.id}">Force return</button>` : ''}
             <button class="btn btn-danger btn-small" data-delkey="${k.id}">Delete</button>
           </div>
@@ -551,6 +570,13 @@ function renderAdmin(){
         row.querySelector('button[data-delkey]').addEventListener('click', () => deleteKey(k.id, k.status));
         const forceBtn = row.querySelector('button[data-force]');
         if (forceBtn) forceBtn.addEventListener('click', () => returnKey(k.id));
+        const assignInput = row.querySelector('.assign-input');
+        row.querySelector('button[data-assign]').addEventListener('click', () => {
+          const name = assignInput.value.trim();
+          if (!name){ alert('Type a name to assign this key to.'); return; }
+          adminAssignKey(k.id, name);
+          assignInput.value = '';
+        });
         keysHost.appendChild(row);
       });
     }
