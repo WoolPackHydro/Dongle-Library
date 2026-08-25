@@ -546,7 +546,7 @@ async function adminAssignKey(keyId, name){
       checkedOutAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   } catch (err) {
-    alert('Could not assign key: ' + err.message);
+    reportError(err, 'assign that key');
   }
 }
 
@@ -582,14 +582,22 @@ function renderYourKeys(){
 
 /* ---------- Admin view ---------- */
 
+// Shown for any admin write that fails — most commonly because the Firestore security
+// rules haven't been published yet, or don't cover the collection being written to.
+function reportError(err, what){
+  alert(`Could not ${what}: ${err.message}\n\nIf this mentions "permission" or "insufficient permissions," it usually means the Firestore security rules haven't been published yet (or need updating) — see the setup guide.`);
+}
+
 $('add-license-btn').addEventListener('click', async () => {
   const name = $('new-license-name').value.trim();
   const sectionId = $('new-license-section').value || null;
   if (!name) return;
   const payload = { name };
   if (sectionId) payload.sectionId = sectionId;
-  await db.collection('licenses').add(payload);
-  $('new-license-name').value = '';
+  try {
+    await db.collection('licenses').add(payload);
+    $('new-license-name').value = '';
+  } catch (err) { reportError(err, 'add that software title'); }
 });
 
 // Renaming a software title just updates its `name` field — keys reference the
@@ -598,31 +606,39 @@ $('add-license-btn').addEventListener('click', async () => {
 async function renameLicense(licenseId, name){
   const trimmed = name.trim();
   if (!trimmed) return;
-  await db.collection('licenses').doc(licenseId).update({ name: trimmed });
+  try {
+    await db.collection('licenses').doc(licenseId).update({ name: trimmed });
+  } catch (err) { reportError(err, 'rename that software title'); }
 }
 
 // Same idea for section: a license stores a sectionId, not a section name, so
 // renaming a section (see renameSection below) automatically moves every title
 // under it — nothing here needs to change when that happens.
 async function updateLicenseSection(licenseId, sectionId){
-  if (sectionId){
-    await db.collection('licenses').doc(licenseId).update({ sectionId });
-  } else {
-    await db.collection('licenses').doc(licenseId).update({ sectionId: firebase.firestore.FieldValue.delete() });
-  }
+  try {
+    if (sectionId){
+      await db.collection('licenses').doc(licenseId).update({ sectionId });
+    } else {
+      await db.collection('licenses').doc(licenseId).update({ sectionId: firebase.firestore.FieldValue.delete() });
+    }
+  } catch (err) { reportError(err, 'change that section'); }
 }
 
 $('add-section-btn').addEventListener('click', async () => {
   const name = $('new-section-name').value.trim();
   if (!name) return;
-  await db.collection('sections').add({ name });
-  $('new-section-name').value = '';
+  try {
+    await db.collection('sections').add({ name });
+    $('new-section-name').value = '';
+  } catch (err) { reportError(err, 'add that section'); }
 });
 
 async function renameSection(sectionId, name){
   const trimmed = name.trim();
   if (!trimmed) return;
-  await db.collection('sections').doc(sectionId).update({ name: trimmed });
+  try {
+    await db.collection('sections').doc(sectionId).update({ name: trimmed });
+  } catch (err) { reportError(err, 'rename that section'); }
 }
 
 async function deleteSection(sectionId, name){
@@ -632,7 +648,9 @@ async function deleteSection(sectionId, name){
     return;
   }
   if (!confirm(`Delete the "${name}" section?`)) return;
-  await db.collection('sections').doc(sectionId).delete();
+  try {
+    await db.collection('sections').doc(sectionId).delete();
+  } catch (err) { reportError(err, 'delete that section'); }
 }
 
 function renderAdminSections(){
@@ -661,10 +679,12 @@ $('add-key-btn').addEventListener('click', async () => {
   const licenseId = $('new-key-license').value;
   const value = $('new-key-value').value.trim();
   if (!licenseId || !value) return;
-  await db.collection('keys').add({
-    licenseId, value, status: 'available', holder: '', holderLower: '', checkedOutAt: null
-  });
-  $('new-key-value').value = '';
+  try {
+    await db.collection('keys').add({
+      licenseId, value, status: 'available', holder: '', holderLower: '', checkedOutAt: null
+    });
+    $('new-key-value').value = '';
+  } catch (err) { reportError(err, 'add that key'); }
 });
 
 function renderAdmin(){
@@ -757,10 +777,12 @@ function renderAdmin(){
 async function deleteLicense(id, name, keyCount){
   const ok = confirm(`Delete "${name}"? This will also delete its ${keyCount} key(s). This can't be undone.`);
   if (!ok) return;
-  const batch = db.batch();
-  allKeys.filter(k => k.licenseId === id).forEach(k => batch.delete(db.collection('keys').doc(k.id)));
-  batch.delete(db.collection('licenses').doc(id));
-  await batch.commit();
+  try {
+    const batch = db.batch();
+    allKeys.filter(k => k.licenseId === id).forEach(k => batch.delete(db.collection('keys').doc(k.id)));
+    batch.delete(db.collection('licenses').doc(id));
+    await batch.commit();
+  } catch (err) { reportError(err, 'delete that software title'); }
 }
 
 async function deleteKey(id, status){
@@ -768,7 +790,9 @@ async function deleteKey(id, status){
     ? 'This key is currently checked out. Delete it anyway?'
     : 'Delete this key?';
   if (!confirm(msg)) return;
-  await db.collection('keys').doc(id).delete();
+  try {
+    await db.collection('keys').doc(id).delete();
+  } catch (err) { reportError(err, 'delete that key'); }
 }
 
 </script>
