@@ -60,8 +60,7 @@
   .name-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
   .name-row .field{flex:1;min-width:220px;}
 
-  .section-heading{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:20px 0 8px;}
-  .section-heading:first-child{margin-top:0;}
+  #section-tabs{margin-bottom:16px;}
   .license{border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;background:var(--panel-2);}
   .license-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
   .license-head h3{margin:0;font-size:1rem;}
@@ -159,6 +158,7 @@
 
       <div class="card">
         <h2>Software</h2>
+        <div class="tabs" id="section-tabs"></div>
         <div id="licenses-list"><p class="empty-note">Loading…</p></div>
       </div>
 
@@ -176,6 +176,19 @@
 
       <div id="admin-content" class="hidden">
         <div class="card">
+          <h2>Sections</h2>
+          <p class="subtle" style="margin-top:0;">Sections show up as tabs on the main page — e.g. "LiDAR Processing," "Sidescan." Rename one here any time and everything under it moves with the new name automatically.</p>
+          <div class="row">
+            <div class="field">
+              <label for="new-section-name">New section name</label>
+              <input type="text" id="new-section-name" placeholder="e.g. Sidescan">
+            </div>
+            <button class="btn btn-primary" id="add-section-btn">Add section</button>
+          </div>
+          <div id="admin-sections-list" style="margin-top:14px;"></div>
+        </div>
+
+        <div class="card">
           <h2>Add software title</h2>
           <div class="row">
             <div class="field">
@@ -184,12 +197,10 @@
             </div>
             <div class="field">
               <label for="new-license-section">Section</label>
-              <input type="text" id="new-license-section" placeholder="e.g. LiDAR Processing" list="section-options">
-              <datalist id="section-options"></datalist>
+              <select id="new-license-section"></select>
             </div>
             <button class="btn btn-primary" id="add-license-btn">Add</button>
           </div>
-          <p class="subtle" style="margin-top:8px;margin-bottom:0;">Section groups titles together on the main page — e.g. "LiDAR Processing," "Sidescan." Type a new one any time; it'll show up as its own group.</p>
         </div>
 
         <div class="card">
@@ -247,14 +258,18 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 let currentUser = null;
-let allLicenses = [];  // [{id, name}]
+let allLicenses = [];  // [{id, name, sectionId}]
 let allKeys = [];      // [{id, licenseId, value, status, holder, holderLower, checkedOutAt}]
+let allSections = [];  // [{id, name}]
 let unsubLicenses = null;
 let unsubKeys = null;
+let unsubSections = null;
 
 const $ = (id) => document.getElementById(id);
 const nameInput = () => $('your-name');
 const NAME_STORAGE_KEY = 'ldl_name';
+const SECTION_TAB_STORAGE_KEY = 'ldl_section_tab';
+let activeSectionId = localStorage.getItem(SECTION_TAB_STORAGE_KEY) || null;
 
 function showMsg(el, text, type){
   el.innerHTML = text ? `<div class="msg ${type}">${text}</div>` : '';
@@ -277,6 +292,7 @@ auth.onAuthStateChanged((user) => {
     $('userbar').classList.add('hidden');
     if (unsubLicenses) unsubLicenses();
     if (unsubKeys) unsubKeys();
+    if (unsubSections) unsubSections();
   }
 });
 
@@ -335,6 +351,7 @@ function currentNameLower(){
 function subscribeData(){
   if (unsubLicenses) unsubLicenses();
   if (unsubKeys) unsubKeys();
+  if (unsubSections) unsubSections();
 
   unsubLicenses = db.collection('licenses').orderBy('name').onSnapshot((snap) => {
     allLicenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -349,9 +366,17 @@ function subscribeData(){
   }, (err) => {
     showMsg($('checkout-msg'), 'Could not load keys: ' + err.message, 'error');
   });
+
+  unsubSections = db.collection('sections').orderBy('name').onSnapshot((snap) => {
+    allSections = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAll();
+  }, (err) => {
+    showMsg($('checkout-msg'), 'Could not load sections: ' + err.message, 'error');
+  });
 }
 
 function renderAll(){
+  renderSectionTabs();
   renderLicensesList();
   renderYourKeys();
   renderAdmin();
@@ -359,70 +384,96 @@ function renderAll(){
 
 /* ---------- Main checkout view ---------- */
 
-function groupLicensesBySection(){
-  const groups = {};
-  allLicenses.forEach(lic => {
-    const section = lic.section || 'Uncategorized';
-    if (!groups[section]) groups[section] = [];
-    groups[section].push(lic);
+// A license "belongs" to whatever section it references by id. One that has no
+// sectionId (either never set, or its section was deleted) falls into a synthetic
+// "unassigned" tab so it never just silently disappears from view.
+function computeSectionTabs(){
+  const tabs = allSections.map(s => ({ id: s.id, name: s.name }));
+  const hasUnassigned = allLicenses.some(l => !l.sectionId || !allSections.find(s => s.id === l.sectionId));
+  if (hasUnassigned) tabs.push({ id: 'unassigned', name: 'Unassigned' });
+  return tabs;
+}
+
+function renderSectionTabs(){
+  const host = $('section-tabs');
+  const tabs = computeSectionTabs();
+
+  if (tabs.length === 0){
+    host.innerHTML = '';
+    activeSectionId = null;
+    return;
+  }
+  if (!activeSectionId || !tabs.find(t => t.id === activeSectionId)){
+    activeSectionId = tabs[0].id;
+  }
+
+  host.innerHTML = tabs.map(t =>
+    `<div class="tab ${t.id === activeSectionId ? 'active' : ''}" data-section-tab="${t.id}">${escapeHtml(t.name)}</div>`
+  ).join('');
+  host.querySelectorAll('[data-section-tab]').forEach(el => {
+    el.addEventListener('click', () => {
+      activeSectionId = el.getAttribute('data-section-tab');
+      localStorage.setItem(SECTION_TAB_STORAGE_KEY, activeSectionId);
+      renderSectionTabs();
+      renderLicensesList();
+    });
   });
-  // Alphabetical, but keep "Uncategorized" last since it's a catch-all, not a real section.
-  const sectionNames = Object.keys(groups).sort((a, b) => {
-    if (a === 'Uncategorized') return 1;
-    if (b === 'Uncategorized') return -1;
-    return a.localeCompare(b);
-  });
-  return { groups, sectionNames };
 }
 
 function renderLicensesList(){
   const container = $('licenses-list');
-  if (allLicenses.length === 0){
-    container.innerHTML = '<p class="empty-note">No software has been added yet. Ask your admin to add some in the Admin tab.</p>';
+  const tabs = computeSectionTabs();
+
+  if (tabs.length === 0){
+    container.innerHTML = allLicenses.length === 0
+      ? '<p class="empty-note">No software has been added yet. Ask your admin to add some in the Admin tab.</p>'
+      : '<p class="empty-note">No sections yet — ask your admin to create one in the Admin tab.</p>';
     return;
   }
+
+  const inSection = allLicenses.filter(l => {
+    const belongsTo = (l.sectionId && allSections.find(s => s.id === l.sectionId)) ? l.sectionId : 'unassigned';
+    return belongsTo === activeSectionId;
+  });
+
+  if (inSection.length === 0){
+    container.innerHTML = '<p class="empty-note">Nothing in this section yet.</p>';
+    return;
+  }
+
   container.innerHTML = '';
-  const { groups, sectionNames } = groupLicensesBySection();
+  inSection.forEach(lic => {
+    const keysForLic = allKeys.filter(k => k.licenseId === lic.id);
+    const total = keysForLic.length;
+    const free = keysForLic.filter(k => k.status === 'available');
+    const taken = keysForLic.filter(k => k.status === 'checked_out');
 
-  sectionNames.forEach(section => {
-    const heading = document.createElement('h3');
-    heading.className = 'section-heading';
-    heading.textContent = section;
-    container.appendChild(heading);
+    const div = document.createElement('div');
+    div.className = 'license';
 
-    groups[section].forEach(lic => {
-      const keysForLic = allKeys.filter(k => k.licenseId === lic.id);
-      const total = keysForLic.length;
-      const free = keysForLic.filter(k => k.status === 'available');
-      const taken = keysForLic.filter(k => k.status === 'checked_out');
+    let holdersHtml = '';
+    if (taken.length > 0){
+      holdersHtml = `<div class="holders">Currently held by:<ul>${
+        taken.map(k => `<li>${escapeHtml(k.holder || 'someone')}${daysAgoLabel(k.checkedOutAt)}</li>`).join('')
+      }</ul></div>`;
+    }
 
-      const div = document.createElement('div');
-      div.className = 'license';
-
-      let holdersHtml = '';
-      if (taken.length > 0){
-        holdersHtml = `<div class="holders">Currently held by:<ul>${
-          taken.map(k => `<li>${escapeHtml(k.holder || 'someone')}${daysAgoLabel(k.checkedOutAt)}</li>`).join('')
-        }</ul></div>`;
-      }
-
-      const canCheckout = free.length > 0;
-      div.innerHTML = `
-        <div class="license-head">
-          <h3>${escapeHtml(lic.name)}</h3>
-          <span class="badge ${canCheckout ? 'free' : 'full'}">${free.length} of ${total} available</span>
-        </div>
-        ${holdersHtml}
-        <div style="margin-top:12px;">
-          <button class="btn btn-primary btn-small" ${canCheckout ? '' : 'disabled'} data-lic="${lic.id}">
-            ${canCheckout ? 'Check out a key' : 'None available'}
-          </button>
-        </div>
-      `;
-      const btn = div.querySelector('button[data-lic]');
-      btn.addEventListener('click', () => checkoutKey(lic.id));
-      container.appendChild(div);
-    });
+    const canCheckout = free.length > 0;
+    div.innerHTML = `
+      <div class="license-head">
+        <h3>${escapeHtml(lic.name)}</h3>
+        <span class="badge ${canCheckout ? 'free' : 'full'}">${free.length} of ${total} available</span>
+      </div>
+      ${holdersHtml}
+      <div style="margin-top:12px;">
+        <button class="btn btn-primary btn-small" ${canCheckout ? '' : 'disabled'} data-lic="${lic.id}">
+          ${canCheckout ? 'Check out a key' : 'None available'}
+        </button>
+      </div>
+    `;
+    const btn = div.querySelector('button[data-lic]');
+    btn.addEventListener('click', () => checkoutKey(lic.id));
+    container.appendChild(div);
   });
 }
 
@@ -533,15 +584,77 @@ function renderYourKeys(){
 
 $('add-license-btn').addEventListener('click', async () => {
   const name = $('new-license-name').value.trim();
-  const section = $('new-license-section').value.trim() || 'Uncategorized';
+  const sectionId = $('new-license-section').value || null;
   if (!name) return;
-  await db.collection('licenses').add({ name, section });
+  const payload = { name };
+  if (sectionId) payload.sectionId = sectionId;
+  await db.collection('licenses').add(payload);
   $('new-license-name').value = '';
-  $('new-license-section').value = '';
 });
 
-async function updateLicenseSection(licenseId, section){
-  await db.collection('licenses').doc(licenseId).update({ section: section.trim() || 'Uncategorized' });
+// Renaming a software title just updates its `name` field — keys reference the
+// license by its Firestore document id, never by name, so every key stays attached
+// no matter how many times the title gets renamed.
+async function renameLicense(licenseId, name){
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  await db.collection('licenses').doc(licenseId).update({ name: trimmed });
+}
+
+// Same idea for section: a license stores a sectionId, not a section name, so
+// renaming a section (see renameSection below) automatically moves every title
+// under it — nothing here needs to change when that happens.
+async function updateLicenseSection(licenseId, sectionId){
+  if (sectionId){
+    await db.collection('licenses').doc(licenseId).update({ sectionId });
+  } else {
+    await db.collection('licenses').doc(licenseId).update({ sectionId: firebase.firestore.FieldValue.delete() });
+  }
+}
+
+$('add-section-btn').addEventListener('click', async () => {
+  const name = $('new-section-name').value.trim();
+  if (!name) return;
+  await db.collection('sections').add({ name });
+  $('new-section-name').value = '';
+});
+
+async function renameSection(sectionId, name){
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  await db.collection('sections').doc(sectionId).update({ name: trimmed });
+}
+
+async function deleteSection(sectionId, name){
+  const inUse = allLicenses.filter(l => l.sectionId === sectionId).length;
+  if (inUse > 0){
+    alert(`"${name}" still has ${inUse} software title(s) in it. Move them to a different section first (each title's Section dropdown in the Admin tab), then delete this section.`);
+    return;
+  }
+  if (!confirm(`Delete the "${name}" section?`)) return;
+  await db.collection('sections').doc(sectionId).delete();
+}
+
+function renderAdminSections(){
+  const host = $('admin-sections-list');
+  if (allSections.length === 0){
+    host.innerHTML = '<p class="empty-note">No sections yet — add one above.</p>';
+    return;
+  }
+  host.innerHTML = '';
+  allSections.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'keyrow';
+    row.innerHTML = `
+      <div style="flex:1;min-width:160px;">
+        <input type="text" class="rename-section-input" value="${escapeHtml(s.name)}">
+      </div>
+      <button class="btn btn-danger btn-small" data-del-section="${s.id}">Delete</button>
+    `;
+    row.querySelector('.rename-section-input').addEventListener('change', (e) => renameSection(s.id, e.target.value));
+    row.querySelector('button[data-del-section]').addEventListener('click', () => deleteSection(s.id, s.name));
+    host.appendChild(row);
+  });
 }
 
 $('add-key-btn').addEventListener('click', async () => {
@@ -555,15 +668,21 @@ $('add-key-btn').addEventListener('click', async () => {
 });
 
 function renderAdmin(){
+  renderAdminSections();
+
   // populate the "add key" software dropdown
   const sel = $('new-key-license');
   const prevVal = sel.value;
   sel.innerHTML = allLicenses.map(l => `<option value="${l.id}">${escapeHtml(l.name)}</option>`).join('');
   if (prevVal) sel.value = prevVal;
 
-  // populate the section suggestions datalist from whatever sections already exist
-  const sectionSet = new Set(allLicenses.map(l => l.section || 'Uncategorized'));
-  $('section-options').innerHTML = Array.from(sectionSet).map(s => `<option value="${escapeHtml(s)}"></option>`).join('');
+  // populate the "add software title" section dropdown
+  const newLicSectionSel = $('new-license-section');
+  const prevSectionVal = newLicSectionSel.value;
+  newLicSectionSel.innerHTML = allSections.length > 0
+    ? allSections.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')
+    : '<option value="">— add a section above first —</option>';
+  if (prevSectionVal) newLicSectionSel.value = prevSectionVal;
 
   const container = $('admin-licenses-list');
   container.innerHTML = '';
@@ -573,19 +692,31 @@ function renderAdmin(){
     card.className = 'card';
     card.innerHTML = `
       <h2 style="display:flex;justify-content:space-between;align-items:center;">
-        ${escapeHtml(lic.name)}
+        <span>${escapeHtml(lic.name)}</span>
         <button class="btn btn-ghost btn-small" data-del-lic="${lic.id}">Delete software</button>
       </h2>
       <div class="row" style="margin-top:-8px;margin-bottom:14px;">
-        <div class="field" style="max-width:220px;">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" class="name-edit" value="${escapeHtml(lic.name)}">
+        </div>
+        <div class="field">
           <label>Section</label>
-          <input type="text" class="section-edit" value="${escapeHtml(lic.section || 'Uncategorized')}" list="section-options">
+          <select class="section-edit"></select>
         </div>
       </div>
       <div id="admin-keys-${lic.id}"></div>
     `;
     card.querySelector('button[data-del-lic]').addEventListener('click', () => deleteLicense(lic.id, lic.name, keysForLic.length));
-    card.querySelector('.section-edit').addEventListener('change', (e) => updateLicenseSection(lic.id, e.target.value));
+    card.querySelector('.name-edit').addEventListener('change', (e) => renameLicense(lic.id, e.target.value));
+
+    const sectionEditSel = card.querySelector('.section-edit');
+    sectionEditSel.innerHTML = ['<option value="">Unassigned</option>']
+      .concat(allSections.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`))
+      .join('');
+    sectionEditSel.value = lic.sectionId || '';
+    sectionEditSel.addEventListener('change', (e) => updateLicenseSection(lic.id, e.target.value));
+
     container.appendChild(card);
 
     const keysHost = card.querySelector(`#admin-keys-${lic.id}`);
