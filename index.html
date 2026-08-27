@@ -491,8 +491,8 @@ function daysAgoLabel(ts){
 // e.g. a 12-character key becomes *********DD3 — only the last 3 characters are real.
 function maskKey(value){
   const str = String(value || '');
-  if (str.length <= 3) return '*'.repeat(str.length);
-  return '*'.repeat(str.length - 3) + str.slice(-3);
+  if (str.length <= 3) return str;
+  return '...' + '*'.repeat(4) + str.slice(-3);
 }
 
 function escapeHtml(str){
