@@ -69,7 +69,10 @@
   .badge.full{background:var(--bad-bg);color:var(--bad);}
   .holders{margin-top:10px;font-size:.85rem;color:var(--muted);}
   .masked-key{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.02em;}
-  .holders ul{margin:6px 0 0;padding-left:18px;}
+  .holders-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.85rem;}
+  .holders-table th{text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;padding:4px 10px 6px 0;border-bottom:1px solid var(--border);}
+  .holders-table td{padding:7px 10px 7px 0;border-bottom:1px solid var(--border);color:var(--text);}
+  .holders-table tr:last-child td{border-bottom:none;}
   .empty-note{color:var(--muted);font-size:.9rem;}
 
   .mykey{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
@@ -454,9 +457,18 @@ function renderLicensesList(){
 
     let holdersHtml = '';
     if (taken.length > 0){
-      holdersHtml = `<div class="holders">Currently held by:<ul>${
-        taken.map(k => `<li>${escapeHtml(k.holder || 'someone')} — <span class="masked-key">${escapeHtml(maskKey(k.value))}</span>${daysAgoLabel(k.checkedOutAt)}</li>`).join('')
-      }</ul></div>`;
+      holdersHtml = `<div class="holders">
+        <table class="holders-table">
+          <thead><tr><th>User</th><th>Key</th><th>Checked out</th></tr></thead>
+          <tbody>${
+            taken.map(k => `<tr>
+              <td>${escapeHtml(k.holder || 'someone')}</td>
+              <td class="masked-key">${escapeHtml(maskKey(k.value))}</td>
+              <td>${daysAgoLabel(k.checkedOutAt).replace(' — ', '') || '—'}</td>
+            </tr>`).join('')
+          }</tbody>
+        </table>
+      </div>`;
     }
 
     const canCheckout = free.length > 0;
